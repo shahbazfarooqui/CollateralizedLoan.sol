@@ -1,0 +1,63 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.0;
+
+interface IERC20 {
+    function transfer(address recipient, uint256 amount) external returns (bool);
+    function transferFrom(address sender, address recipient, uint256 amount) external returns (bool);
+}
+
+contract CollateralizedLoan {
+    address public partyA;
+    address public partyB;
+    address public usdtTokenAddress;
+    address public bnbTokenAddress;
+    uint256 public loanAmount;
+    uint256 public collateralAmount;
+    uint256 public loanDeadline;
+    bool public loanRepaid;
+
+    constructor(
+        address _partyA,
+        address _partyB,
+        address _usdtTokenAddress,
+        address _bnbTokenAddress,
+        uint256 _loanAmount,
+        uint256 _collateralAmount
+    ) {
+        partyA = _partyA;
+        partyB = _partyB;
+        usdtTokenAddress = _usdtTokenAddress;
+        bnbTokenAddress = _bnbTokenAddress;
+        loanAmount = _loanAmount;
+        collateralAmount = _collateralAmount;
+        loanDeadline = block.timestamp + 60 days; // 2 months from now
+        loanRepaid = false;
+    }
+
+    function depositCollateral() external {
+        require(msg.sender == partyA, "Only Party A can deposit collateral.");
+        IERC20(bnbTokenAddress).transferFrom(msg.sender, address(this), collateralAmount);
+    }
+
+    function giveLoan() external {
+        require(msg.sender == partyB, "Only Party B can give the loan.");
+        IERC20(usdtTokenAddress).transferFrom(msg.sender, partyA, loanAmount);
+    }
+
+    function repayLoan() external {
+        require(msg.sender == partyA, "Only Party A can repay the loan.");
+        require(block.timestamp <= loanDeadline, "Loan repayment period has ended.");
+        require(!loanRepaid, "Loan has already been repaid.");
+
+        loanRepaid = true;
+        IERC20(usdtTokenAddress).transferFrom(msg.sender, partyB, loanAmount);
+        IERC20(bnbTokenAddress).transfer(partyA, collateralAmount);
+    }
+
+    function claimCollateral() external {
+        require(block.timestamp > loanDeadline, "Loan deadline has not passed yet.");
+        require(!loanRepaid, "Loan has already been repaid.");
+
+        IERC20(bnbTokenAddress).transfer(partyB, collateralAmount);
+    }
+}
